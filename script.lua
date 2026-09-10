@@ -1,6 +1,6 @@
 --[[
-    Blox Fruits Advanced Toolkit v6 by Gta90988
-    Фикс: сундуки (рекурсивный поиск) | Локации 1/2/3 моря | Автофарм
+    Blox Fruits Advanced Toolkit v7 by Gta90988
+    Фиксы: ESP remove | Chest TP через Tween | Player Info ESP | Auto Quest
 ]]
 
 if getgenv().BF_TOOLKIT then pcall(function() getgenv().BF_TOOLKIT:Destroy() end) end
@@ -15,23 +15,21 @@ local p = Players.LocalPlayer
 
 -- ===== КОНФИГ =====
 local Config = {
-    FlyTime = 1.0,
+    FlyTime = 1.5,             -- медленнее для античита
     AttackRadius = 40,
     FarmDelay = 0.5,
-    MaxTargetDist = 500,
     AutoDetect = true,
     WalkSpeed = 16,
     CurrentSea = "Auto",
 }
 
--- ===== ХЕЛПЕРЫ =====
 local function randFloat(a, b) return a + math.random() * (b - a) end
-
 local function safePosition(cf, dist)
     local angle = math.rad(math.random(0, 360))
     return cf * CFrame.new(math.cos(angle) * dist, 0, math.sin(angle) * dist)
 end
 
+-- Плавный полёт (защита от anti-cheat)
 local function flyTo(hrp, targetCFrame, duration)
     duration = duration or Config.FlyTime
     if Config.AutoDetect then duration = duration * randFloat(0.9, 1.3) end
@@ -42,22 +40,9 @@ local function flyTo(hrp, targetCFrame, duration)
     tween.Completed:Wait()
 end
 
--- ===== ОПРЕДЕЛЕНИЕ МОРЯ =====
-local function getCurrentSea()
-    if Config.CurrentSea ~= "Auto" then return Config.CurrentSea end
-    local char = p.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return 1 end
-    local pos = char.HumanoidRootPart.Position
-    -- 3 море: Port Town (Z>4000) и Hydra (X>4000)
-    if pos.Z > 4000 or pos.X > 4000 then return 3
-    -- 2 море: Cafe (-380,15,260), Kingdom of Rose (-400,30,2000)
-    elseif pos.Z > -1000 and pos.Z < 3000 and pos.X > -1000 and pos.X < 1500 then return 2
-    else return 1 end
-end
-
 -- ===== РЕКУРСИВНЫЙ ПОИСК (ФИКС СУНДУКОВ) =====
 local function recursiveFind(predicate, maxDepth)
-    maxDepth = maxDepth or 5
+    maxDepth = maxDepth or 6
     local found = {}
     local function scan(parent, depth)
         if depth > maxDepth then return end
@@ -72,6 +57,7 @@ local function recursiveFind(predicate, maxDepth)
     return found
 end
 
+-- ===== МОБЫ (ВСЯ КАРТА) =====
 local function isMob(m)
     if not m or m == p.Character then return false end
     if Players:GetPlayerFromCharacter(m) then return false end
@@ -79,30 +65,53 @@ local function isMob(m)
     return hum and hum.Health > 0 and m:FindFirstChild("HumanoidRootPart")
 end
 
+-- ФИКС: без ограничения дистанции — вся карта
 local function getAllMobs() return recursiveFind(isMob, 3) end
 
+-- ===== СУНДУКИ (ФИКС) =====
 local function isChest(obj)
     local n = obj.Name:lower()
     return (n:find("chest") or n:find("treasure") or n:find("crate"))
         and (obj:IsA("Model") or obj:IsA("BasePart"))
+        and (obj:FindFirstChild("Handle") or obj.PrimaryPart)
 end
-
--- ФИКС: рекурсивный поиск сундуков
 local function getAllChests() return recursiveFind(isChest, 5) end
 
-local function isFruit(obj)
-    local FRUITS = {["Rocket"]=true,["Spin"]=true,["Chop"]=true,["Spring"]=true,["Bomb"]=true,["Smoke"]=true,["Spike"]=true,["Flame"]=true,["Falcon"]=true,["Ice"]=true,["Sand"]=true,["Dark"]=true,["Diamond"]=true,["Light"]=true,["Rubber"]=true,["Barrier"]=true,["Magma"]=true,["Door"]=true,["Quake"]=true,["Buddha"]=true,["Love"]=true,["Spider"]=true,["Sound"]=true,["Phoenix"]=true,["Portal"]=true,["Rumble"]=true,["Pain"]=true,["Blizzard"]=true,["Gravity"]=true,["Mammoth"]=true,["T-Rex"]=true,["Dough"]=true,["Shadow"]=true,["Venom"]=true,["Control"]=true,["Spirit"]=true,["Dragon"]=true,["Leopard"]=true,["Kitsune"]=true}
-    return obj:IsA("Tool") and obj:FindFirstChild("Handle") and FRUITS[obj.Name]
+-- ===== ФРУКТЫ =====
+local FRUITS = {["Rocket"]=true,["Spin"]=true,["Chop"]=true,["Spring"]=true,["Bomb"]=true,["Smoke"]=true,["Spike"]=true,["Flame"]=true,["Falcon"]=true,["Ice"]=true,["Sand"]=true,["Dark"]=true,["Diamond"]=true,["Light"]=true,["Rubber"]=true,["Barrier"]=true,["Magma"]=true,["Door"]=true,["Quake"]=true,["Buddha"]=true,["Love"]=true,["Spider"]=true,["Sound"]=true,["Phoenix"]=true,["Portal"]=true,["Rumble"]=true,["Pain"]=true,["Blizzard"]=true,["Gravity"]=true,["Mammoth"]=true,["T-Rex"]=true,["Dough"]=true,["Shadow"]=true,["Venom"]=true,["Control"]=true,["Spirit"]=true,["Dragon"]=true,["Leopard"]=true,["Kitsune"]=true}
+local function isFruit(obj) return obj:IsA("Tool") and obj:FindFirstChild("Handle") and FRUITS[obj.Name] end
+
+-- ===== ЯГОДЫ =====
+local BERRY_TYPES = {["Green Toad Berry"]=true,["White Cloud Berry"]=true,["Blue Icicle Berry"]=true,["Purple Jelly Berry"]=true,["Pink Pig Berry"]=true,["Orange Berry"]=true,["Yellow Star Berry"]=true,["Red Cherry Berry"]=true}
+local function isBerry(obj) return BERRY_TYPES[obj.Name] ~= nil end
+
+-- ===== ОПРЕДЕЛЕНИЕ МОРЯ =====
+local function getCurrentSea()
+    if Config.CurrentSea ~= "Auto" then return Config.CurrentSea end
+    local char = p.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return 1 end
+    local pos = char.HumanoidRootPart.Position
+    if pos.Z > 4000 or pos.X > 4000 then return 3
+    elseif pos.Z > -1000 and pos.Z < 3000 and pos.X > -1000 and pos.X < 1500 then return 2
+    else return 1 end
 end
 
-local function isBerry(obj)
-    local BERRY_TYPES = {["Green Toad Berry"]=true,["White Cloud Berry"]=true,["Blue Icicle Berry"]=true,["Purple Jelly Berry"]=true,["Pink Pig Berry"]=true,["Orange Berry"]=true,["Yellow Star Berry"]=true,["Red Cherry Berry"]=true}
-    return BERRY_TYPES[obj.Name] ~= nil
+-- ===== ИНФО ИГРОКА (ФИКС: HP, LVL, FRUIT) =====
+local function getPlayerInfo(plr)
+    local hp, maxHp = 0, 100
+    local lvl, fruit = "?", "None"
+    if plr.Character then
+        local h = plr.Character:FindFirstChildOfClass("Humanoid")
+        if h then hp, maxHp = math.floor(h.Health), math.floor(h.MaxHealth) end
+    end
+    pcall(function() lvl = plr.Data.Level.Value end)
+    pcall(function() fruit = plr.Data.Fruit.Value end)
+    return hp, maxHp, lvl, fruit
 end
 
 -- ===== UI =====
 local sg = Instance.new("ScreenGui")
-sg.Name = "BF_Toolkit_v6"
+sg.Name = "BF_Toolkit_v7"
 sg.ResetOnSpawn = false
 sg.IgnoreGuiInset = true
 sg.Parent = p:WaitForChild("PlayerGui")
@@ -127,7 +136,7 @@ local titleLbl = Instance.new("TextLabel", titleBar)
 titleLbl.Size = UDim2.new(1, -80, 1, 0)
 titleLbl.Position = UDim2.new(0, 12, 0, 0)
 titleLbl.BackgroundTransparency = 1
-titleLbl.Text = "BF Toolkit v6 | Chest Fix + All Seas"
+titleLbl.Text = "BF Toolkit v7 | ESP Fix + Player Info"
 titleLbl.TextColor3 = Color3.fromRGB(240, 240, 240)
 titleLbl.Font = Enum.Font.GothamBold
 titleLbl.TextSize = 16
@@ -296,12 +305,13 @@ local State = {
     AutoFarm = false, BringMobs = false, AutoHaki = false,
     AutoClick = false, ESP_Mobs = false, ESP_Players = false,
     ESP_Fruits = false, ESP_Berries = false, ESP_Chests = false,
-    Fly = false, AutoQuest = false, AutoChest = false, AutoQuestFull = false
+    Fly = false, AutoQuestFull = false, AutoChest = false
 }
 
--- ===== ESP =====
+-- ===== ESP (ФИКС ВЫКЛЮЧЕНИЯ) =====
 local espObjects = {}
 
+-- ФИКС: удаляем Highlight через :Destroy(), а не Enabled=false
 local function destroyESP(obj)
     if espObjects[obj] then
         for _, v in pairs(espObjects[obj]) do
@@ -311,7 +321,13 @@ local function destroyESP(obj)
     end
 end
 
-local function createESP(obj, color, isFruitType, rarity)
+local function clearAllESP()
+    for obj, _ in pairs(espObjects) do
+        destroyESP(obj)
+    end
+end
+
+local function createESP(obj, color, extraLine)
     if espObjects[obj] then return end
     local data = {}
     local hl = Instance.new("Highlight")
@@ -323,36 +339,36 @@ local function createESP(obj, color, isFruitType, rarity)
     data.hl = hl
 
     local bb = Instance.new("BillboardGui")
-    bb.Size = UDim2.new(0, 220, 0, 40)
+    bb.Size = UDim2.new(0, 240, 0, extraLine and 50 or 30)
     bb.StudsOffset = Vector3.new(0, 3.5, 0)
     bb.AlwaysOnTop = true
     bb.Parent = obj
 
     local lbl = Instance.new("TextLabel", bb)
-    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.Size = UDim2.new(1, 0, 0, 20)
     lbl.BackgroundTransparency = 1
     lbl.Text = obj.Name
     lbl.TextColor3 = color
     lbl.TextStrokeTransparency = 0
     lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     lbl.Font = Enum.Font.GothamBold
-    lbl.TextSize = 14
+    lbl.TextSize = 13
     data.bb = bb
     data.lbl = lbl
     data.baseName = obj.Name
 
-    if isFruitType and rarity then
-        local rl = Instance.new("TextLabel", bb)
-        rl.Size = UDim2.new(1, 0, 0, 14)
-        rl.Position = UDim2.new(0, 0, 1, 0)
-        rl.BackgroundTransparency = 1
-        rl.Text = "[" .. rarity .. "]"
-        rl.TextColor3 = Color3.fromRGB(255, 180, 60)
-        rl.TextStrokeTransparency = 0
-        rl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-        rl.Font = Enum.Font.GothamBold
-        rl.TextSize = 12
-        data.rarityLbl = rl
+    if extraLine then
+        local sub = Instance.new("TextLabel", bb)
+        sub.Size = UDim2.new(1, 0, 0, 16)
+        sub.Position = UDim2.new(0, 0, 0, 20)
+        sub.BackgroundTransparency = 1
+        sub.Text = extraLine
+        sub.TextColor3 = Color3.fromRGB(255, 255, 255)
+        sub.TextStrokeTransparency = 0
+        sub.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        sub.Font = Enum.Font.Gotham
+        sub.TextSize = 11
+        data.subLbl = sub
     end
 
     espObjects[obj] = data
@@ -378,10 +394,10 @@ addToggle(farmPage, "AutoFarm (медленный полёт)", function(v) Stat
 addToggle(farmPage, "Bring Mobs", function(v) State.BringMobs = v end)
 addToggle(farmPage, "Auto Haki (Buso + Ken)", function(v) State.AutoHaki = v end)
 addToggle(farmPage, "Auto Click", function(v) State.AutoClick = v end)
-addToggle(farmPage, "Auto Chest (ФИКС - работает)", function(v) State.AutoChest = v end)
+addToggle(farmPage, "Auto Chest (ФИКС v7)", function(v) State.AutoChest = v end)
 addSlider(farmPage, "Зона атаки", 5, 200, 40, function(v) Config.AttackRadius = v end)
 addSlider(farmPage, "Задержка атаки (x0.1с)", 1, 20, 5, function(v) Config.FarmDelay = v * 0.1 end)
-addSlider(farmPage, "Время полёта (x0.1с)", 3, 30, 10, function(v) Config.FlyTime = v * 0.1 end)
+addSlider(farmPage, "Время полёта (x0.1с)", 5, 30, 15, function(v) Config.FlyTime = v * 0.1 end)
 
 addButton(farmPage, "ТП к ближайшему мобу", function()
     local mobs = getAllMobs()
@@ -397,10 +413,10 @@ addButton(farmPage, "ТП к ближайшему мобу", function()
     if best then flyTo(hrp, safePosition(best.HumanoidRootPart.CFrame, 3)) end
 end)
 
-addButton(farmPage, "ТП к ближайшему сундуку (ФИКС)", function()
+addButton(farmPage, "ТП к ближайшему сундуку (v7 FIX)", function()
     local chests = getAllChests()
     if #chests == 0 then
-        game.StarterGui:SetCore("SendNotification", {Title="Сундуки", Text="Не найдено. Попробуй позже.", Duration=3})
+        game.StarterGui:SetCore("SendNotification", {Title="Сундуки", Text="Не найдено", Duration=3})
         return
     end
     local char = p.Character
@@ -408,58 +424,48 @@ addButton(farmPage, "ТП к ближайшему сундуку (ФИКС)", fu
     local hrp = char.HumanoidRootPart
     local best, dist = nil, math.huge
     for _, c in ipairs(chests) do
-        local handle = c:FindFirstChild("Handle") or c.PrimaryPart
-        if handle then
-            local d = (handle.Position - hrp.Position).Magnitude
+        local h = c:FindFirstChild("Handle") or c.PrimaryPart
+        if h then
+            local d = (h.Position - hrp.Position).Magnitude
             if d < dist then best, dist = c, d end
         end
     end
     if best then
-        local handle = best:FindFirstChild("Handle") or best.PrimaryPart
-        flyTo(hrp, handle.CFrame * CFrame.new(0, 0, 3))
+        local h = best:FindFirstChild("Handle") or best.PrimaryPart
+        flyTo(hrp, h.CFrame * CFrame.new(0, 0, 3))
         game.StarterGui:SetCore("SendNotification", {Title="Сундук", Text=best.Name .. " [" .. math.floor(dist) .. "m]", Duration=2})
     end
 end)
 
-addButton(farmPage, "Показать сколько сундуков рядом (DEBUG)", function()
+addButton(farmPage, "DEBUG: сколько сундуков найдено", function()
     local chests = getAllChests()
-    local char = p.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local near = 0
-    if hrp then
-        for _, c in ipairs(chests) do
-            local h = c:FindFirstChild("Handle") or c.PrimaryPart
-            if h and (h.Position - hrp.Position).Magnitude < 500 then near = near + 1 end
-        end
-    end
     game.StarterGui:SetCore("SendNotification", {
-        Title = "DEBUG",
-        Text = "Всего сундуков: " .. #chests .. " | Рядом: " .. near,
+        Title = "DEBUG Chests",
+        Text = "Всего найдено: " .. #chests,
         Duration = 5
     })
 end, Color3.fromRGB(180, 150, 50))
 
--- ===== SEA TAB (ВСЕ 3 МОРЯ) =====
+-- ===== SEA TAB =====
 local seaPage = pages.Sea
 
--- Квестовые NPC по морям (актуальные данные)
 local QuestNPCs = {
     [1] = {
-        {name="Bandit",     cframe=CFrame.new(-1500, 10, 100),   quest="BanditQuest1",   num=1, lvl=1},
-        {name="Monkey",     cframe=CFrame.new(-1500, 20, 200),   quest="JungleQuest",    num=1, lvl=10},
-        {name="Pirate",     cframe=CFrame.new(-1200, 20, 3300),  quest="PirateQuest",    num=1, lvl=30},
-        {name="Brute",      cframe=CFrame.new(-1300, 20, 4300),  quest="DesertQuest",    num=1, lvl=60},
-        {name="Snow Bandit",cframe=CFrame.new(-1100, 20, 5800),  quest="SnowQuest",      num=1, lvl=90},
+        {name="Bandit", cframe=CFrame.new(-1500,10,100), quest="BanditQuest1", num=1, lvl=1},
+        {name="Monkey", cframe=CFrame.new(-1500,20,200), quest="JungleQuest", num=1, lvl=10},
+        {name="Pirate", cframe=CFrame.new(-1200,20,3300), quest="PirateQuest", num=1, lvl=30},
+        {name="Brute", cframe=CFrame.new(-1300,20,4300), quest="DesertQuest", num=1, lvl=60},
+        {name="Snow Bandit", cframe=CFrame.new(-1100,20,5800), quest="SnowQuest", num=1, lvl=90},
     },
     [2] = {
-        {name="Swan Pirate",cframe=CFrame.new(-400, 30, 2000),   quest="SwanQuest",      num=1, lvl=700},
-        {name="Zombie",     cframe=CFrame.new(-4000, 30, -5000), quest="ZombieQuest",    num=1, lvl=1000},
-        {name="Ice Pirate", cframe=CFrame.new(500, 30, -1500),   quest="IceQuest",       num=1, lvl=1200},
+        {name="Swan Pirate", cframe=CFrame.new(-400,30,2000), quest="SwanQuest", num=1, lvl=700},
+        {name="Zombie", cframe=CFrame.new(-4000,30,-5000), quest="ZombieQuest", num=1, lvl=1000},
+        {name="Ice Pirate", cframe=CFrame.new(500,30,-1500), quest="IceQuest", num=1, lvl=1200},
     },
     [3] = {
-        {name="Port Pirate",cframe=CFrame.new(-300, 20, 5000),   quest="PortQuest",      num=1, lvl=1500},
-        {name="Hydra Crew", cframe=CFrame.new(5000, 30, 1000),   quest="HydraQuest",     num=1, lvl=1575},
-        {name="Tree NPC",   cframe=CFrame.new(2000, 50, -2000),  quest="TreeQuest",      num=1, lvl=1700},
+        {name="Port Pirate", cframe=CFrame.new(-300,20,5000), quest="PortQuest", num=1, lvl=1500},
+        {name="Hydra Crew", cframe=CFrame.new(5000,30,1000), quest="HydraQuest", num=1, lvl=1575},
+        {name="Tree NPC", cframe=CFrame.new(2000,50,-2000), quest="TreeQuest", num=1, lvl=1700},
     }
 }
 
@@ -471,7 +477,7 @@ seaIndicator.TextColor3 = Color3.fromRGB(100, 200, 255)
 seaIndicator.Font = Enum.Font.GothamBold
 seaIndicator.TextSize = 14
 seaIndicator.BorderSizePixel = 0
-seaIndicator.Text = "Текущее море: определение..."
+seaIndicator.Text = "Море: определение..."
 Instance.new("UICorner", seaIndicator).CornerRadius = UDim.new(0, 6)
 
 task.spawn(function()
@@ -483,14 +489,14 @@ task.spawn(function()
     end
 end)
 
-addButton(seaPage, "Установить: Авто-определение", function() Config.CurrentSea = "Auto" end, Color3.fromRGB(100, 180, 100))
+addButton(seaPage, "Установить: Авто", function() Config.CurrentSea = "Auto" end, Color3.fromRGB(100, 180, 100))
 addButton(seaPage, "Установить: 1 море", function() Config.CurrentSea = 1 end, Color3.fromRGB(100, 130, 200))
 addButton(seaPage, "Установить: 2 море", function() Config.CurrentSea = 2 end, Color3.fromRGB(100, 130, 200))
 addButton(seaPage, "Установить: 3 море", function() Config.CurrentSea = 3 end, Color3.fromRGB(100, 130, 200))
 
 addToggle(seaPage, "Auto Quest (полный цикл)", function(v) State.AutoQuestFull = v end)
 
-addButton(seaPage, "Взять квест для моего уровня", function()
+addButton(seaPage, "Взять квест по уровню", function()
     local sea = getCurrentSea()
     local lvl = 1
     pcall(function() lvl = p.Data.Level.Value end)
@@ -505,7 +511,6 @@ addButton(seaPage, "Взять квест для моего уровня", funct
         pcall(function()
             ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", best.quest, best.num)
         end)
-        game.StarterGui:SetCore("SendNotification", {Title="Квест взят", Text=best.name .. " (море " .. sea .. ")", Duration=3})
     end
 end, Color3.fromRGB(150, 100, 200))
 
@@ -513,19 +518,65 @@ addButton(seaPage, "Сдать квест", function()
     pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("CompleteQuest") end)
 end, Color3.fromRGB(100, 180, 100))
 
-addButton(seaPage, "Отменить квест", function()
-    pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("AbandonQuest") end)
+-- ===== VISUAL TAB (ФИКС) =====
+local visualPage = pages.Visual
+
+addToggle(visualPage, "ESP Мобы (вся карта)", function(v)
+    State.ESP_Mobs = v
+    if not v then
+        for obj, _ in pairs(espObjects) do
+            if isMob(obj) then destroyESP(obj) end
+        end
+    end
+end)
+
+addToggle(visualPage, "ESP Игроки (HP + LVL + FRUIT)", function(v)
+    State.ESP_Players = v
+    if not v then
+        for obj, _ in pairs(espObjects) do
+            if Players:GetPlayerFromCharacter(obj) then destroyESP(obj) end
+        end
+    end
+end)
+
+addToggle(visualPage, "ESP Фрукты", function(v)
+    State.ESP_Fruits = v
+    if not v then
+        for obj, _ in pairs(espObjects) do
+            if isFruit(obj) then destroyESP(obj) end
+        end
+    end
+end)
+
+addToggle(visualPage, "ESP Ягоды для ауры", function(v)
+    State.ESP_Berries = v
+    if not v then
+        for obj, _ in pairs(espObjects) do
+            if isBerry(obj) then destroyESP(obj) end
+        end
+    end
+end)
+
+addToggle(visualPage, "ESP Сундуки", function(v)
+    State.ESP_Chests = v
+    if not v then
+        for obj, _ in pairs(espObjects) do
+            if isChest(obj) then destroyESP(obj) end
+        end
+    end
+end)
+
+addButton(visualPage, "ВЫКЛЮЧИТЬ ВСЁ ESP (FIX)", function()
+    clearAllESP()
+    State.ESP_Mobs = false
+    State.ESP_Players = false
+    State.ESP_Fruits = false
+    State.ESP_Berries = false
+    State.ESP_Chests = false
+    game.StarterGui:SetCore("SendNotification", {Title="ESP", Text="Всё выключено", Duration=3})
 end, Color3.fromRGB(180, 100, 100))
 
--- ===== VISUAL TAB =====
-local visualPage = pages.Visual
-addToggle(visualPage, "ESP Мобы (красные)", function(v) State.ESP_Mobs = v end)
-addToggle(visualPage, "ESP Игроки (зелёные)", function(v) State.ESP_Players = v end)
-addToggle(visualPage, "ESP Фрукты", function(v) State.ESP_Fruits = v end)
-addToggle(visualPage, "ESP Ягоды для ауры", function(v) State.ESP_Berries = v end)
-addToggle(visualPage, "ESP Сундуки (ФИКС)", function(v) State.ESP_Chests = v end)
-
--- ===== TELEPORT TAB (ВСЕ МОРЯ) =====
+-- ===== TELEPORT TAB =====
 local tpPage = pages.Teleport
 local ISLANDS = {
     [1] = {
@@ -541,32 +592,16 @@ local ISLANDS = {
         ["Green Zone"]=CFrame.new(100,20,500),["Graveyard Island"]=CFrame.new(-4000,30,-5000),
         ["Ice Castle"]=CFrame.new(500,30,-1500),["Snow Mountain"]=CFrame.new(1000,50,-1000),
         ["Forgotten Island"]=CFrame.new(-3000,20,-2000),["Hot and Cold"]=CFrame.new(-5000,30,-3000),
-        ["Cursed Ship"]=CFrame.new(1000,50,-2000),
     },
     [3] = {
         ["Port Town"]=CFrame.new(-300,20,5000),["Hydra Island"]=CFrame.new(5000,30,1000),
         ["Great Tree"]=CFrame.new(2000,50,-2000),["Floating Turtle"]=CFrame.new(3000,30,3000),
         ["Tiki Outpost"]=CFrame.new(-1000,20,-5000),["Candy Cane Land"]=CFrame.new(2000,30,3000),
-        ["Prehistoric Island"]=CFrame.new(5000,30,-4000),["Haunted Castle"]=CFrame.new(-5000,50,5000),
-        ["Castle on the Sea"]=CFrame.new(5000,30,-3000),
+        ["Prehistoric Island"]=CFrame.new(5000,30,-4000),
     }
 }
 
-addSlider(tpPage, "Скорость ТП (x0.1с)", 5, 50, 12, function(v) Config.FlyTime = v * 0.1 end)
-
-addButton(tpPage, "ТП к ближайшему мобу", function()
-    local mobs = getAllMobs()
-    if #mobs == 0 then return end
-    local char = p.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    local hrp = char.HumanoidRootPart
-    local best, dist = nil, math.huge
-    for _, m in ipairs(mobs) do
-        local d = (m.HumanoidRootPart.Position - hrp.Position).Magnitude
-        if d < dist then best, dist = m, d end
-    end
-    if best then flyTo(hrp, safePosition(best.HumanoidRootPart.CFrame, 3)) end
-end)
+addSlider(tpPage, "Скорость ТП (x0.1с)", 5, 50, 15, function(v) Config.FlyTime = v * 0.1 end)
 
 addButton(tpPage, "ТП к ближайшему сундуку", function()
     local chests = getAllChests()
@@ -608,7 +643,6 @@ addSlider(movePage, "WalkSpeed", 16, 200, 16, function(v)
     local h = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
     if h then h.WalkSpeed = v end
 end)
-addSlider(movePage, "Fly Speed", 20, 200, 50, function(v) Config.FlySpeed = v end)
 
 UserInput.InputBegan:Connect(function(input, gpe)
     if gpe then return end
@@ -642,7 +676,7 @@ RunService.RenderStepped:Connect(function()
             if UserInput:IsKeyDown(Enum.KeyCode.D) then move += cam.CFrame.RightVector end
             if UserInput:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0, 1, 0) end
             if UserInput:IsKeyDown(Enum.KeyCode.LeftControl) then move -= Vector3.new(0, 1, 0) end
-            flyVel.Velocity = move * Config.FlySpeed
+            flyVel.Velocity = move * 50
             flyGyro.CFrame = cam.CFrame
         end
     end
@@ -651,27 +685,16 @@ end)
 -- ===== MISC TAB =====
 local miscPage = pages.Misc
 addToggle(miscPage, "Anti-AFK", function(v) getgenv().AntiAFK = v end)
-addToggle(miscPage, "Anti-Detect", function(v) Config.AutoDetect = v end)
-
-addButton(miscPage, "Показать FPS / Ping", function()
-    local fps = math.floor(1 / RunService.RenderStepped:Wait())
-    local ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
-    game.StarterGui:SetCore("SendNotification", {Title="Info", Text="FPS: " .. fps .. " | Ping: " .. ping .. "ms", Duration=5})
-end)
-
 addButton(miscPage, "Респавн", function()
     if p.Character then p.Character:BreakJoints() end
 end, Color3.fromRGB(180, 100, 100))
 
--- ===== АВТОФАРМ (ПОЛНЫЙ ЦИКЛ) =====
+-- ===== АВТОФАРМ =====
 task.spawn(function()
     while task.wait(Config.FarmDelay) do
         if State.AutoFarm then
             local char = p.Character
-            if not char or not char:FindFirstChild("HumanoidRootPart") then
-                task.wait(1)
-                continue
-            end
+            if not char or not char:FindFirstChild("HumanoidRootPart") then task.wait(1) continue end
             local hrp = char.HumanoidRootPart
             local mobs = getAllMobs()
             if #mobs > 0 then
@@ -680,24 +703,22 @@ task.spawn(function()
                     local d = (m.HumanoidRootPart.Position - hrp.Position).Magnitude
                     if d < dist then best, dist = m, d end
                 end
-                if best and dist <= Config.AttackRadius then
+                if best then
                     flyTo(hrp, safePosition(best.HumanoidRootPart.CFrame, 3))
                     local tool = char:FindFirstChildOfClass("Tool")
                     if tool then pcall(function() tool:Activate() end) end
                     VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
                     task.wait(Config.FarmDelay * 0.3)
                     VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-                elseif best then
-                    flyTo(hrp, safePosition(best.HumanoidRootPart.CFrame, 3))
                 end
             end
         end
     end
 end)
 
--- ===== AUTO CHEST LOOP (ФИКС) =====
+-- ===== AUTO CHEST (v7 FIX) =====
 task.spawn(function()
-    while task.wait(2.5) do
+    while task.wait(3) do
         if State.AutoChest then
             local char = p.Character
             if not char or not char:FindFirstChild("HumanoidRootPart") then continue end
@@ -708,19 +729,19 @@ task.spawn(function()
                 local h = c:FindFirstChild("Handle") or c.PrimaryPart
                 if h then
                     local d = (h.Position - hrp.Position).Magnitude
-                    if d < dist and d < 500 then best, dist = c, d end
+                    if d < dist and d < 600 then best, dist = c, d end
                 end
             end
             if best then
                 local h = best:FindFirstChild("Handle") or best.PrimaryPart
                 flyTo(hrp, h.CFrame * CFrame.new(0, 0, 3))
-                task.wait(0.3)
+                task.wait(0.5)
             end
         end
     end
 end)
 
--- ===== AUTO QUEST FULL CYCLE =====
+-- ===== AUTO QUEST FULL =====
 task.spawn(function()
     while task.wait(3) do
         if State.AutoQuestFull then
@@ -735,13 +756,11 @@ task.spawn(function()
                 if lvl >= q.lvl then best = q end
             end
             if best then
-                -- Летим к NPC и берём квест
                 flyTo(char.HumanoidRootPart, best.cframe * CFrame.new(0, 0, 5), 1.5)
                 task.wait(0.5)
                 pcall(function()
                     ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", best.quest, best.num)
                 end)
-                -- Фармим 30 секунд
                 local endTime = tick() + 30
                 while tick() < endTime and State.AutoQuestFull do
                     local mobs = getAllMobs()
@@ -760,10 +779,7 @@ task.spawn(function()
                     end
                     task.wait(0.5)
                 end
-                -- Сдаём квест
-                pcall(function()
-                    ReplicatedStorage.Remotes.CommF_:InvokeServer("CompleteQuest")
-                end)
+                pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("CompleteQuest") end)
             end
         end
     end
@@ -789,7 +805,7 @@ task.spawn(function()
     end
 end)
 
--- ===== ESP LOOPS (ФИКС) =====
+-- ===== ESP LOOPS =====
 task.spawn(function()
     while task.wait(0.7) do
         if State.ESP_Mobs then
@@ -800,15 +816,15 @@ task.spawn(function()
         if State.ESP_Players then
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr ~= p and plr.Character and not espObjects[plr.Character] then
-                    createESP(plr.Character, Color3.fromRGB(60, 220, 60))
+                    local hp, maxHp, lvl, fruit = getPlayerInfo(plr)
+                    local info = "HP: " .. hp .. "/" .. maxHp .. " | Lvl: " .. lvl .. " | " .. fruit
+                    createESP(plr.Character, Color3.fromRGB(60, 220, 60), info)
                 end
             end
         end
         if State.ESP_Fruits then
             for _, obj in ipairs(workspace:GetChildren()) do
-                if isFruit(obj) and not espObjects[obj] then
-                    createESP(obj, Color3.fromRGB(255, 180, 60))
-                end
+                if isFruit(obj) and not espObjects[obj] then createESP(obj, Color3.fromRGB(255, 180, 60)) end
             end
         end
         if State.ESP_Berries then
@@ -819,6 +835,23 @@ task.spawn(function()
         if State.ESP_Chests then
             for _, obj in ipairs(getAllChests()) do
                 if not espObjects[obj] then createESP(obj, Color3.fromRGB(255, 220, 60)) end
+            end
+        end
+    end
+end)
+
+-- Обновление HP/фрукта игроков каждые 0.3с
+task.spawn(function()
+    while task.wait(0.3) do
+        if State.ESP_Players then
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= p and plr.Character and espObjects[plr.Character] then
+                    local hp, maxHp, lvl, fruit = getPlayerInfo(plr)
+                    local data = espObjects[plr.Character]
+                    if data.subLbl then
+                        data.subLbl.Text = "HP: " .. hp .. "/" .. maxHp .. " | Lvl: " .. lvl .. " | " .. fruit
+                    end
+                end
             end
         end
     end
@@ -844,8 +877,8 @@ end)
 
 -- ===== DONE =====
 game.StarterGui:SetCore("SendNotification", {
-    Title = "BF Toolkit v6",
-    Text = "Загружено. Сундуки + все моря.",
+    Title = "BF Toolkit v7",
+    Text = "Загружено. ESP Fix + Player Info.",
     Duration = 5
 })
-warn("[BF Toolkit v6] Загружено успешно")
+warn("[BF Toolkit v7] Загружено успешно")
