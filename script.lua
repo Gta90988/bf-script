@@ -1,17 +1,16 @@
 --[[
     ╔══════════════════════════════════════════════╗
-    ║           GOSHA HUB v2.0                     ║
-    ║           Rayfield UI Edition                ║
+    ║           GOSHA HUB v3.0                     ║
+    ║           Fix Follow + TP via Spawn          ║
     ║           by Gta90988                        ║
     ╚══════════════════════════════════════════════╝
 ]]
 
--- ===== ОЧИСТКА =====
 if getgenv().GOSHA_HUB then pcall(function() getgenv().GOSHA_HUB:Destroy() end) end
 if getgenv().GOSHA_CLEANUP then pcall(getgenv().GOSHA_CLEANUP) end
 getgenv().GOSHA_RUNNING = true
 
--- ===== ЗАГРУЗКА RAYFIELD UI =====
+-- ===== RAYFIELD UI =====
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -113,7 +112,7 @@ local function isFruit(obj) return obj:IsA("Tool") and obj:FindFirstChild("Handl
 local BERRY_TYPES = {["Green Toad Berry"]="Green Toad",["White Cloud Berry"]="White Cloud",["Blue Icicle Berry"]="Blue Icicle",["Purple Jelly Berry"]="Purple Jelly",["Pink Pig Berry"]="Pink Pig",["Orange Berry"]="Orange",["Yellow Star Berry"]="Yellow Star",["Red Cherry Berry"]="Red Cherry"}
 local function isBerry(obj) return BERRY_TYPES[obj.Name] ~= nil end
 
--- ===== ОСТРОВА =====
+-- ===== ОСТРОВА (с точками спавна) =====
 local ISLANDS = {
     {name="Starter Island", cf=CFrame.new(0,20,0), sea=1},
     {name="Marine Fortress", cf=CFrame.new(-2500,30,-2500), sea=1},
@@ -142,6 +141,47 @@ local ISLANDS = {
     {name="Candy Cane Land", cf=CFrame.new(2000,30,3000), sea=3},
     {name="Prehistoric Island", cf=CFrame.new(5000,30,-4000), sea=3},
 }
+
+-- Точки спавна (используются для ТП к игроку через остров)
+local SpawnPoints = {
+    ["Starter Island"] = CFrame.new(0, 20, 0),
+    ["Marine Fortress"] = CFrame.new(-2500, 30, -2500),
+    ["Middle Town"] = CFrame.new(-600, 15, 600),
+    ["Jungle"] = CFrame.new(-1500, 20, 200),
+    ["Pirate Village"] = CFrame.new(-1200, 20, 3300),
+    ["Desert"] = CFrame.new(-1300, 20, 4300),
+    ["Frozen Village"] = CFrame.new(-1100, 20, 5800),
+    ["Colosseum"] = CFrame.new(-1500, 40, 2000),
+    ["Magma Village"] = CFrame.new(-5200, 30, 1000),
+    ["Underwater City"] = CFrame.new(-4000, -200, 5000),
+    ["Fountain City"] = CFrame.new(5200, 30, 4000),
+    ["Skylands"] = CFrame.new(-4500, 800, -3000),
+    ["Cafe"] = CFrame.new(-380, 15, 260),
+    ["Kingdom of Rose"] = CFrame.new(-400, 30, 2000),
+    ["Green Zone"] = CFrame.new(100, 20, 500),
+    ["Graveyard Island"] = CFrame.new(-4000, 30, -5000),
+    ["Ice Castle"] = CFrame.new(500, 30, -1500),
+    ["Snow Mountain"] = CFrame.new(1000, 50, -1000),
+    ["Forgotten Island"] = CFrame.new(-3000, 20, -2000),
+    ["Port Town"] = CFrame.new(-300, 20, 5000),
+    ["Hydra Island"] = CFrame.new(5000, 30, 1000),
+    ["Great Tree"] = CFrame.new(2000, 50, -2000),
+    ["Floating Turtle"] = CFrame.new(3000, 30, 3000),
+    ["Tiki Outpost"] = CFrame.new(-1000, 20, -5000),
+}
+
+-- Определить ближайший остров к позиции
+local function getIslandFromPosition(targetPos)
+    local closest, minDist = nil, math.huge
+    for name, cf in pairs(SpawnPoints) do
+        local d = (targetPos - cf.Position).Magnitude
+        if d < minDist then
+            minDist = d
+            closest = name
+        end
+    end
+    return closest, minDist
+end
 
 -- ===== КВЕСТЫ =====
 local QuestNPCs = {
@@ -221,7 +261,7 @@ local State = {
     Fly = false
 }
 
--- ===== ESP СИСТЕМА =====
+-- ===== ESP =====
 getgenv().GOSHA_ESP = {}
 local espObjects = getgenv().GOSHA_ESP
 
@@ -311,12 +351,13 @@ local function updateESPLabels()
 end
 
 -- ═══════════════════════════════════════════
--- ██████████ UI ВКЛАДКИ ██████████
+-- UI
 -- ═══════════════════════════════════════════
 
--- ===== FARM TAB =====
+-- ===== FARM =====
 local FarmTab = Window:CreateTab("Farm", "sword")
-local FarmSection = FarmTab:CreateSection("Автофарм")
+
+FarmTab:CreateSection("Автофарм")
 
 FarmTab:CreateToggle({
     Name = "AutoFarm (плавный)",
@@ -434,9 +475,10 @@ FarmTab:CreateButton({
     end
 })
 
--- ===== QUEST TAB =====
+-- ===== QUEST =====
 local QuestTab = Window:CreateTab("Quest", "scroll")
-local QuestSection = QuestTab:CreateSection("Квесты")
+
+QuestTab:CreateSection("Квесты")
 
 QuestTab:CreateToggle({
     Name = "Auto Quest (полный цикл)",
@@ -475,9 +517,10 @@ QuestTab:CreateButton({
     end
 })
 
--- ===== VISUAL TAB =====
+-- ===== VISUAL =====
 local VisualTab = Window:CreateTab("Visual", "eye")
-local VisualSection = VisualTab:CreateSection("ESP")
+
+VisualTab:CreateSection("ESP")
 
 VisualTab:CreateToggle({
     Name = "ESP Мобы",
@@ -529,13 +572,6 @@ VisualTab:CreateToggle({
     end
 })
 
-VisualTab:CreateToggle({
-    Name = "ESP Острова",
-    CurrentValue = false,
-    Flag = "ESP_Islands",
-    Callback = function(v) State.ESP_Islands = v end
-})
-
 VisualTab:CreateButton({
     Name = "ВЫКЛЮЧИТЬ ВСЁ ESP",
     Callback = function()
@@ -550,9 +586,10 @@ VisualTab:CreateButton({
     end
 })
 
--- ===== ISLANDS TAB =====
+-- ===== ISLANDS =====
 local IslandsTab = Window:CreateTab("Islands", "map")
-local IslandsSection = IslandsTab:CreateSection("Телепорт по островам")
+
+IslandsTab:CreateSection("Телепорт по островам")
 
 IslandsTab:CreateButton({
     Name = "Авто-определение моря",
@@ -571,13 +608,28 @@ for _, isl in ipairs(ISLANDS) do
     })
 end
 
--- ===== PLAYERS TAB =====
+-- ===== PLAYERS =====
 local PlayersTab = Window:CreateTab("Players", "users")
-local PlayersSection = PlayersTab:CreateSection("Игроки")
 
-PlayersTab:CreateDropdown({
-    Name = "Следить за игроком",
-    Options = {"None"},
+PlayersTab:CreateSection("Слежка и ТП к игрокам")
+
+-- Динамический список игроков
+local playerNames = {"None"}
+
+local function refreshPlayerList()
+    playerNames = {"None"}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= p then
+            table.insert(playerNames, plr.Name)
+        end
+    end
+    return playerNames
+end
+
+-- Дропдаун со списком игроков
+local playerDropdown = PlayersTab:CreateDropdown({
+    Name = "Выбрать игрока",
+    Options = refreshPlayerList(),
     CurrentOption = {"None"},
     Flag = "FollowPlayer",
     Callback = function(v)
@@ -585,13 +637,15 @@ PlayersTab:CreateDropdown({
             Config.FollowTarget = nil
             if p.Character then
                 local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then workspace.CurrentCamera.CameraSubject = hrp end
+                local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                if hum then workspace.CurrentCamera.CameraSubject = hum end
             end
+            Rayfield:Notify({Title="Слежка", Content="Отключено", Duration=2})
         else
             for _, plr in ipairs(Players:GetPlayers()) do
                 if plr.Name == v[1] then
                     Config.FollowTarget = plr
-                    Rayfield:Notify({Title="Наблюдение", Content="Следим за " .. plr.Name, Duration=3})
+                    Rayfield:Notify({Title="Слежка", Content="Следим за " .. plr.Name, Duration=3})
                 end
             end
         end
@@ -601,17 +655,92 @@ PlayersTab:CreateDropdown({
 PlayersTab:CreateButton({
     Name = "Обновить список игроков",
     Callback = function()
-        local names = {"None"}
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= p then table.insert(names, plr.Name) end
-        end
+        local names = refreshPlayerList()
+        pcall(function()
+            playerDropdown:Refresh(names, true)
+        end)
         Rayfield:Notify({Title="Игроки", Content="Найдено: " .. (#names - 1), Duration=3})
     end
 })
 
--- ===== MOVE TAB =====
+PlayersTab:CreateButton({
+    Name = "Следить за игроком (вкл/выкл)",
+    Callback = function()
+        if Config.FollowTarget then
+            Rayfield:Notify({Title="Слежка", Content="Следим за " .. Config.FollowTarget.Name, Duration=3})
+        else
+            Rayfield:Notify({Title="Слежка", Content="Выбери игрока в списке выше", Duration=3})
+        end
+    end
+})
+
+PlayersTab:CreateButton({
+    Name = "ТП к игроку (через спавн острова)",
+    Callback = function()
+        if not Config.FollowTarget then
+            Rayfield:Notify({Title="Ошибка", Content="Сначала выбери игрока", Duration=3})
+            return
+        end
+        
+        local targetPlayer = Config.FollowTarget
+        local char = p.Character
+        local myHrp = char and char:FindFirstChild("HumanoidRootPart")
+        
+        if not (targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart")) then
+            Rayfield:Notify({Title="Ошибка", Content="Цель не в игре или мертва", Duration=3})
+            return
+        end
+        if not myHrp then
+            Rayfield:Notify({Title="Ошибка", Content="Твой персонаж не загружен", Duration=3})
+            return
+        end
+
+        local targetPos = targetPlayer.Character.HumanoidRootPart.Position
+        local islandName, distance = getIslandFromPosition(targetPos)
+
+        -- Этап 1: ТП на точку спавна острова
+        if islandName and SpawnPoints[islandName] then
+            Rayfield:Notify({
+                Title="Этап 1/2",
+                Content="Лечу на остров: " .. islandName,
+                Duration=3
+            })
+            flyTo(myHrp, SpawnPoints[islandName], 2.5)
+            task.wait(0.5)
+        else
+            Rayfield:Notify({Title="Ошибка", Content="Не удалось определить остров", Duration=3})
+            return
+        end
+
+        -- Этап 2: Летим к игроку
+        Rayfield:Notify({
+            Title="Этап 2/2",
+            Content="Лечу к " .. targetPlayer.Name,
+            Duration=3
+        })
+        local currentHrp = targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if currentHrp then
+            flyTo(myHrp, safePosition(currentHrp.CFrame, 5), 2)
+        end
+    end
+})
+
+PlayersTab:CreateButton({
+    Name = "Прекратить слежку",
+    Callback = function()
+        Config.FollowTarget = nil
+        if p.Character then
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            if hum then workspace.CurrentCamera.CameraSubject = hum end
+        end
+        Rayfield:Notify({Title="Слежка", Content="Остановлено", Duration=2})
+    end
+})
+
+-- ===== MOVE =====
 local MoveTab = Window:CreateTab("Move", "wind")
-local MoveSection = MoveTab:CreateSection("Движение")
+
+MoveTab:CreateSection("Движение")
 
 MoveTab:CreateToggle({
     Name = "Fly (клавиша F)",
@@ -634,9 +763,10 @@ MoveTab:CreateSlider({
     end
 })
 
--- ===== MISC TAB =====
+-- ===== MISC =====
 local MiscTab = Window:CreateTab("Misc", "settings")
-local MiscSection = MiscTab:CreateSection("Разное")
+
+MiscTab:CreateSection("Разное")
 
 MiscTab:CreateToggle({
     Name = "Anti-AFK",
@@ -662,10 +792,10 @@ MiscTab:CreateButton({
 })
 
 -- ═══════════════════════════════════════════
--- ██████████ ЛОГИКА ██████████
+-- ЛОГИКА
 -- ═══════════════════════════════════════════
 
--- Fly система
+-- Fly
 local flyVel, flyGyro
 UserInput.InputBegan:Connect(function(input, gpe)
     if gpe then return end
@@ -705,14 +835,15 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Слежение за игроком
+-- ИСПРАВЛЕННАЯ СЛЕЖКА (через Humanoid, а не модель)
 task.spawn(function()
     while getgenv().GOSHA_RUNNING do
         task.wait(0.2)
         if Config.FollowTarget and Config.FollowTarget.Character then
-            local target = Config.FollowTarget.Character:FindFirstChild("HumanoidRootPart")
-            if target then
-                workspace.CurrentCamera.CameraSubject = target
+            local targetChar = Config.FollowTarget.Character
+            local targetHum = targetChar:FindFirstChildOfClass("Humanoid")
+            if targetHum then
+                workspace.CurrentCamera.CameraSubject = targetHum
             end
         end
     end
@@ -831,7 +962,7 @@ task.spawn(function()
     end
 end)
 
--- Auto Quest Full
+-- Auto Quest
 task.spawn(function()
     while getgenv().GOSHA_RUNNING do
         task.wait(3)
@@ -896,8 +1027,8 @@ end)
 
 -- ===== ГОТОВО =====
 Rayfield:Notify({
-    Title = "Gosha HUB v2.0",
-    Content = "Загружено! Нажми K чтобы скрыть UI.",
+    Title = "Gosha HUB v3.0",
+    Content = "Загружено! Слежка и ТП к игрокам исправлены.",
     Duration = 5
 })
-warn("[Gosha HUB v2.0] Загружено успешно")
+warn("[Gosha HUB v3.0] Загружено успешно")
