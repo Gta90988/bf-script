@@ -1,7 +1,7 @@
 --[[
     ╔══════════════════════════════════════════════╗
-    ║           GOSHA HUB v16.1                    ║
-    ║   Berry ESP Fix | Stable | All Features      ║
+    ║           GOSHA HUB v16.2                    ║
+    ║   Berry ESP Fix | Large Window | Stable      ║
     ╚══════════════════════════════════════════════╝
 ]]
 
@@ -13,14 +13,32 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "Gosha HUB",
     Icon = 0,
-    LoadingTitle = "Gosha HUB v16.1",
+    LoadingTitle = "Gosha HUB v16.2",
     LoadingSubtitle = "by Gta90988",
     Theme = "Green",
     ToggleUIKeybind = "K",
     ConfigurationSaving = { Enabled = true, FolderName = "GoshaHub", FileName = "Config" },
-    KeySystem = false
+    KeySystem = false,
+    Size = UDim2.new(0, 700, 0, 500)
 })
 getgenv().GOSHA_HUB = Window
+
+-- Попытка растянуть окно через прямое изменение размера
+task.spawn(function()
+    task.wait(1)
+    pcall(function()
+        local coreGui = game:GetService("CoreGui")
+        for _, gui in ipairs(coreGui:GetDescendants()) do
+            if gui:IsA("ScreenGui") and gui.Name:lower():find("rayfield") then
+                for _, frame in ipairs(gui:GetDescendants()) do
+                    if frame:IsA("Frame") and frame.Name == "Main" then
+                        frame.Size = UDim2.new(0, 700, 0, 500)
+                    end
+                end
+            end
+        end
+    end)
+end)
 
 -- ===== СЕРВИСЫ =====
 local Players = game:GetService("Players")
@@ -82,7 +100,6 @@ local function recursiveFind(predicate, maxDepth)
     return found
 end
 
--- ===== МОБЫ =====
 local function isMob(m)
     if not m or m == p.Character then return false end
     if Players:GetPlayerFromCharacter(m) then return false end
@@ -91,7 +108,6 @@ local function isMob(m)
 end
 local function getAllMobs() return recursiveFind(isMob, 3) end
 
--- ===== БОССЫ =====
 local BOSS_LIST = {"Gorilla King","Bobby","Yeti","Smoke Admiral","Axe Hand","Warden","Magma Admiral","Fishman Lord","Diamond","Jeremy","Fajita","Cursed Captain","Greybeard","Sea King","Cake Prince","Don Swan","Kitsune","Dough King","Rip Indra","Order","Longma","Soul Reaper"}
 local function isBoss(obj)
     for _, b in ipairs(BOSS_LIST) do
@@ -101,7 +117,6 @@ local function isBoss(obj)
 end
 local function getAllBosses() return recursiveFind(isBoss, 3) end
 
--- ===== СУНДУКИ =====
 local function isChest(obj)
     local n = obj.Name:lower()
     return (n:find("chest") or n:find("treasure") or n:find("crate"))
@@ -110,7 +125,6 @@ local function isChest(obj)
 end
 local function getAllChests() return recursiveFind(isChest, 5) end
 
--- ===== ФРУКТЫ =====
 local FRUITS = {["Rocket"]=true,["Spin"]=true,["Chop"]=true,["Spring"]=true,["Bomb"]=true,["Smoke"]=true,["Spike"]=true,["Flame"]=true,["Falcon"]=true,["Ice"]=true,["Sand"]=true,["Dark"]=true,["Diamond"]=true,["Light"]=true,["Rubber"]=true,["Barrier"]=true,["Magma"]=true,["Door"]=true,["Quake"]=true,["Buddha"]=true,["Love"]=true,["Spider"]=true,["Sound"]=true,["Phoenix"]=true,["Portal"]=true,["Rumble"]=true,["Pain"]=true,["Blizzard"]=true,["Gravity"]=true,["Mammoth"]=true,["T-Rex"]=true,["Dough"]=true,["Shadow"]=true,["Venom"]=true,["Control"]=true,["Spirit"]=true,["Dragon"]=true,["Leopard"]=true,["Kitsune"]=true}
 local function isFruit(obj)
     if not obj or not obj.Parent then return false end
@@ -129,23 +143,19 @@ local function getAllFruits()
     return list
 end
 
--- ===== ЯГОДЫ (ФИКС — только настоящие ягоды, не кусты) =====
 local BERRY_NAMES = {"Green Toad Berry","White Cloud Berry","Blue Icicle Berry","Purple Jelly Berry","Pink Pig Berry","Orange Berry","Yellow Star Berry","Red Cherry Berry"}
 
 local function isBerry(obj)
     if not obj or not obj.Parent then return false end
-    -- Только объекты с Handle (настоящие ягоды на земле), не кусты
     if not (obj:FindFirstChild("Handle") or (obj:IsA("BasePart") and obj.Name:lower():find("berry"))) then
         return false
     end
-    -- Точное совпадение с одним из типов ягод
     for _, bn in ipairs(BERRY_NAMES) do
         if obj.Name == bn or obj.Name:find(bn) then return true end
     end
     return false
 end
 
--- ФИКС: ограничиваем поиск ягод только рядом с игроком
 local function getNearbyBerries()
     local char = p.Character
     if not char then return {} end
@@ -165,7 +175,6 @@ local function getNearbyBerries()
     return list
 end
 
--- ===== ИГРОКИ =====
 local function getPlayerCharacter(plr)
     if plr == p then return nil end
     local char = plr.Character
@@ -175,7 +184,6 @@ local function getPlayerCharacter(plr)
     return char
 end
 
--- ===== ОСТРОВА =====
 local ISLANDS = {
     {name="Starter Island", cf=CFrame.new(0,20,0), sea=1}, {name="Marine Fortress", cf=CFrame.new(-2500,30,-2500), sea=1}, {name="Middle Town", cf=CFrame.new(-600,15,600), sea=1}, {name="Jungle", cf=CFrame.new(-1500,20,200), sea=1}, {name="Pirate Village", cf=CFrame.new(-1200,20,3300), sea=1}, {name="Desert", cf=CFrame.new(-1300,20,4300), sea=1}, {name="Frozen Village", cf=CFrame.new(-1100,20,5800), sea=1}, {name="Colosseum", cf=CFrame.new(-1500,40,2000), sea=1}, {name="Magma Village", cf=CFrame.new(-5200,30,1000), sea=1}, {name="Underwater City", cf=CFrame.new(-4000,-200,5000), sea=1}, {name="Fountain City", cf=CFrame.new(5200,30,4000), sea=1}, {name="Skylands", cf=CFrame.new(-4500,800,-3000), sea=1},
     {name="Cafe", cf=CFrame.new(-380, 60, 260), sea=2},
@@ -242,7 +250,6 @@ local function getWeapon()
     return char:FindFirstChildOfClass("Tool")
 end
 
--- ===== STATE =====
 local State = {
     AutoFarm = false, AutoFarmAir = false, AutoBoss = false,
     AutoHaki = false, AutoClick = false, AutoChest = false,
@@ -253,7 +260,6 @@ local State = {
     WaterWalk = false, NoClip = false, InfiniteJump = false, AutoDash = false
 }
 
--- ===== ESP СИСТЕМА =====
 getgenv().GOSHA_ESP = {}
 local espCache = getgenv().GOSHA_ESP
 
@@ -279,28 +285,21 @@ end
 
 local function applyESP(obj, color, text)
     if not obj or not obj.Parent then return end
-    
-    -- ФИКС: не превышаем лимит Highlight (255 в Roblox)
     if not espCache[obj] and getActiveESPCount() >= Config.MaxHighlights then return end
-    
     local myChar = p.Character
     local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
     local root = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Handle") or obj.PrimaryPart
     if not root and obj:IsA("Model") then root = obj:FindFirstChildWhichIsA("BasePart") end
     if not root then return end
-
     local dist = (root.Position - hrp.Position).Magnitude
     if dist > Config.ESPDistance then
         if espCache[obj] then removeESP(obj) end
         return
     end
-
-    -- Перепроверка: если Highlight уничтожен — пересоздаём
     if espCache[obj] and (not espCache[obj].hl or not espCache[obj].hl.Parent) then
         removeESP(obj)
     end
-
     if not espCache[obj] then
         pcall(function()
             local hl = Instance.new("Highlight")
@@ -309,13 +308,11 @@ local function applyESP(obj, color, text)
             hl.FillTransparency = 0.5
             hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
             hl.Parent = obj
-
             local bb = Instance.new("BillboardGui")
             bb.Size = UDim2.new(0, 220, 0, 30)
             bb.StudsOffset = Vector3.new(0, 3, 0)
             bb.AlwaysOnTop = true
             bb.Parent = root
-
             local lbl = Instance.new("TextLabel", bb)
             lbl.Size = UDim2.new(1, 0, 1, 0)
             lbl.BackgroundTransparency = 1
@@ -327,7 +324,6 @@ local function applyESP(obj, color, text)
             espCache[obj] = {hl = hl, bb = bb, lbl = lbl, baseName = text or obj.Name}
         end)
     end
-
     local data = espCache[obj]
     if data and data.lbl then
         data.lbl.Text = data.baseName .. " [" .. math.floor(dist) .. "m]"
@@ -640,7 +636,6 @@ task.spawn(function()
             for obj, _ in pairs(espCache) do if not obj.Parent then removeESP(obj) end end
         end
 
-        -- AUTO FARM
         if (State.AutoFarm or State.AutoFarmAir) and now - lastFarm > Config.FarmDelay then
             lastFarm = now
             local char = p.Character
@@ -665,7 +660,6 @@ task.spawn(function()
             end
         end
 
-        -- AUTO BERRY FARM
         if State.AutoBerryFarm and now - lastBerry > 2 then
             lastBerry = now
             local char = p.Character
@@ -687,7 +681,6 @@ task.spawn(function()
             end
         end
 
-        -- AUTO CHEST
         if State.AutoChest and now - lastChest > 2 then
             lastChest = now
             local char = p.Character
@@ -709,7 +702,6 @@ task.spawn(function()
             end
         end
 
-        -- AUTO BOSS
         if State.AutoBoss and now - lastFarm > Config.FarmDelay then
             lastFarm = now
             local char = p.Character
@@ -726,7 +718,6 @@ task.spawn(function()
             end
         end
 
-        -- AUTO STORE
         if State.AutoStore and now - lastStore > 5 then
             lastStore = now
             pcall(function()
@@ -741,13 +732,11 @@ task.spawn(function()
             end)
         end
 
-        -- HAKI
         if State.AutoHaki and p.Character then
             pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("Buso") end)
             pcall(function() ReplicatedStorage.Remotes.CommF_:InvokeServer("Ken", true) end)
         end
 
-        -- CLICK
         if State.AutoClick then VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1) end
     end
 end)
@@ -762,5 +751,5 @@ p.CharacterAdded:Connect(function(char)
     if h then h.WalkSpeed = Config.WalkSpeed end
 end)
 
-Rayfield:Notify({ Title = "Gosha HUB v16.1", Content = "ESP ягод исправлен! Теперь не забивает лимит.", Duration = 5 })
-warn("[Gosha HUB v16.1] Загружено успешно")
+Rayfield:Notify({ Title = "Gosha HUB v16.2", Content = "Загружено! Окно увеличено.", Duration = 5 })
+warn("[Gosha HUB v16.2] Загружено успешно")
