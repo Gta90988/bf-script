@@ -1,7 +1,7 @@
 --[[
     ╔══════════════════════════════════════════════╗
-    ║           GOSHA HUB v16.0                    ║
-    ║   Stable ESP | Fixed TPs | Berry Farm        ║
+    ║           GOSHA HUB v16.1                    ║
+    ║   Berry ESP Fix | Stable | All Features      ║
     ╚══════════════════════════════════════════════╝
 ]]
 
@@ -13,7 +13,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "Gosha HUB",
     Icon = 0,
-    LoadingTitle = "Gosha HUB v16",
+    LoadingTitle = "Gosha HUB v16.1",
     LoadingSubtitle = "by Gta90988",
     Theme = "Green",
     ToggleUIKeybind = "K",
@@ -36,7 +36,8 @@ local Config = {
     FlyTime = 1.5, AttackRadius = 50, FarmDelay = 0.5,
     AutoDetect = true, WalkSpeed = 16, CurrentSea = "Auto",
     Weapon = "Auto", FollowTarget = nil, AirFarmHeight = 12,
-    SafeTP = true, TargetMob = "Auto", ESPDistance = 3000, TP_Speed = 100
+    SafeTP = true, TargetMob = "Auto", ESPDistance = 3000, TP_Speed = 100,
+    BerryRange = 300, MaxHighlights = 200
 }
 
 local function randFloat(a, b) return a + math.random() * (b - a) end
@@ -45,7 +46,6 @@ local function safePosition(cf, dist)
     return cf * CFrame.new(math.cos(a) * dist, 0, math.sin(a) * dist)
 end
 
--- ===== УЛУЧШЕННЫЙ ПОЛЕТ =====
 local function flyTo(hrp, target, duration)
     duration = duration or Config.FlyTime
     if Config.AutoDetect then duration = duration * randFloat(0.9, 1.3) end
@@ -55,7 +55,6 @@ local function flyTo(hrp, target, duration)
     task.wait(randFloat(0.05, 0.15))
 end
 
--- ===== БЕЗОПАСНЫЙ ТП =====
 local function safeTP(hrp, targetCF)
     if not Config.SafeTP then hrp.CFrame = targetCF + Vector3.new(0, 5, 0) return end
     local safeTarget = targetCF + Vector3.new(0, 15, 0)
@@ -66,7 +65,6 @@ local function safeTP(hrp, targetCF)
     flyTo(hrp, safeTarget, 0.6)
 end
 
--- ===== РЕКУРСИВНЫЙ ПОИСК =====
 local function recursiveFind(predicate, maxDepth)
     maxDepth = maxDepth or 6
     local found = {}
@@ -131,18 +129,41 @@ local function getAllFruits()
     return list
 end
 
--- ===== ЯГОДЫ (РАСШИРЕННЫЙ ПОИСК) =====
-local BERRY_TYPES = {["Green Toad Berry"]="Green Toad",["White Cloud Berry"]="White Cloud",["Blue Icicle Berry"]="Blue Icicle",["Purple Jelly Berry"]="Purple Jelly",["Pink Pig Berry"]="Pink Pig",["Orange Berry"]="Orange",["Yellow Star Berry"]="Yellow Star",["Red Cherry Berry"]="Red Cherry"}
+-- ===== ЯГОДЫ (ФИКС — только настоящие ягоды, не кусты) =====
+local BERRY_NAMES = {"Green Toad Berry","White Cloud Berry","Blue Icicle Berry","Purple Jelly Berry","Pink Pig Berry","Orange Berry","Yellow Star Berry","Red Cherry Berry"}
+
 local function isBerry(obj)
     if not obj or not obj.Parent then return false end
-    if not (obj:IsA("Model") or obj:IsA("BasePart") or obj:IsA("Tool")) then return false end
-    local n = obj.Name:lower()
-    -- Ищем и по имени Berry, и по кустам Bush
-    if n:find("berry") or n:find("bush") then return true end
-    for berryName, _ in pairs(BERRY_TYPES) do if obj.Name == berryName or obj.Name:find(berryName) then return true end end
+    -- Только объекты с Handle (настоящие ягоды на земле), не кусты
+    if not (obj:FindFirstChild("Handle") or (obj:IsA("BasePart") and obj.Name:lower():find("berry"))) then
+        return false
+    end
+    -- Точное совпадение с одним из типов ягод
+    for _, bn in ipairs(BERRY_NAMES) do
+        if obj.Name == bn or obj.Name:find(bn) then return true end
+    end
     return false
 end
-local function getAllBerries() return recursiveFind(isBerry, 5) end
+
+-- ФИКС: ограничиваем поиск ягод только рядом с игроком
+local function getNearbyBerries()
+    local char = p.Character
+    if not char then return {} end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return {} end
+    local list = {}
+    local count = 0
+    local all = recursiveFind(isBerry, 4)
+    for _, obj in ipairs(all) do
+        local h = obj:FindFirstChild("Handle") or obj.PrimaryPart
+        if h and (h.Position - hrp.Position).Magnitude < Config.BerryRange then
+            table.insert(list, obj)
+            count = count + 1
+            if count >= 20 then break end
+        end
+    end
+    return list
+end
 
 -- ===== ИГРОКИ =====
 local function getPlayerCharacter(plr)
@@ -154,11 +175,9 @@ local function getPlayerCharacter(plr)
     return char
 end
 
--- ===== ОСТРОВА (ИСПРАВЛЕННЫЕ И ДОПОЛНЕННЫЕ) =====
+-- ===== ОСТРОВА =====
 local ISLANDS = {
-    -- 1 МОРЕ
     {name="Starter Island", cf=CFrame.new(0,20,0), sea=1}, {name="Marine Fortress", cf=CFrame.new(-2500,30,-2500), sea=1}, {name="Middle Town", cf=CFrame.new(-600,15,600), sea=1}, {name="Jungle", cf=CFrame.new(-1500,20,200), sea=1}, {name="Pirate Village", cf=CFrame.new(-1200,20,3300), sea=1}, {name="Desert", cf=CFrame.new(-1300,20,4300), sea=1}, {name="Frozen Village", cf=CFrame.new(-1100,20,5800), sea=1}, {name="Colosseum", cf=CFrame.new(-1500,40,2000), sea=1}, {name="Magma Village", cf=CFrame.new(-5200,30,1000), sea=1}, {name="Underwater City", cf=CFrame.new(-4000,-200,5000), sea=1}, {name="Fountain City", cf=CFrame.new(5200,30,4000), sea=1}, {name="Skylands", cf=CFrame.new(-4500,800,-3000), sea=1},
-    -- 2 МОРЕ
     {name="Cafe", cf=CFrame.new(-380, 60, 260), sea=2},
     {name="Kingdom of Rose", cf=CFrame.new(-400, 35, 2000), sea=2},
     {name="Green Zone", cf=CFrame.new(100,20,500), sea=2},
@@ -168,8 +187,6 @@ local ISLANDS = {
     {name="Forgotten Island", cf=CFrame.new(-3000,20,-2000), sea=2},
     {name="Hot and Cold", cf=CFrame.new(-5000, 30, -3000), sea=2},
     {name="Cursed Ship", cf=CFrame.new(1000,50,-2000), sea=2},
-    {name="Ice Castle (2nd Sea)", cf=CFrame.new(500,30,-1500), sea=2},
-    -- 3 МОРЕ
     {name="Port Town", cf=CFrame.new(-300,20,5000), sea=3},
     {name="Hydra Island", cf=CFrame.new(5000,30,1000), sea=3},
     {name="Great Tree", cf=CFrame.new(2000,50,-2000), sea=3},
@@ -181,7 +198,6 @@ local ISLANDS = {
     {name="Castle on the Sea", cf=CFrame.new(5000,30,-3000), sea=3}
 }
 
--- ===== МОРЕ =====
 local function getCurrentSea()
     if Config.CurrentSea ~= "Auto" then return Config.CurrentSea end
     local char = p.Character
@@ -192,7 +208,6 @@ local function getCurrentSea()
     else return 1 end
 end
 
--- ===== ИНФО =====
 local function getPlayerInfo(plr)
     local hp, maxHp = 0, 100
     local lvl, fruit = "?", "None"
@@ -238,9 +253,15 @@ local State = {
     WaterWalk = false, NoClip = false, InfiniteJump = false, AutoDash = false
 }
 
--- ===== ESP С ПРИНУДИТЕЛЬНОЙ ПРОВЕРКОЙ =====
+-- ===== ESP СИСТЕМА =====
 getgenv().GOSHA_ESP = {}
 local espCache = getgenv().GOSHA_ESP
+
+local function getActiveESPCount()
+    local count = 0
+    for _ in pairs(espCache) do count = count + 1 end
+    return count
+end
 
 local function removeESP(obj)
     if espCache[obj] then
@@ -258,6 +279,10 @@ end
 
 local function applyESP(obj, color, text)
     if not obj or not obj.Parent then return end
+    
+    -- ФИКС: не превышаем лимит Highlight (255 в Roblox)
+    if not espCache[obj] and getActiveESPCount() >= Config.MaxHighlights then return end
+    
     local myChar = p.Character
     local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
@@ -271,7 +296,7 @@ local function applyESP(obj, color, text)
         return
     end
 
-    -- Принудительная перепроверка: если Highlight уничтожен, пересоздаем
+    -- Перепроверка: если Highlight уничтожен — пересоздаём
     if espCache[obj] and (not espCache[obj].hl or not espCache[obj].hl.Parent) then
         removeESP(obj)
     end
@@ -310,7 +335,6 @@ local function applyESP(obj, color, text)
 end
 
 -- ===== UI =====
--- FARM
 local FarmTab = Window:CreateTab("Farm", "sword")
 FarmTab:CreateSection("Автофарм")
 FarmTab:CreateToggle({ Name = "Auto Farm (Ground)", CurrentValue = false, Flag = "AutoFarm", Callback = function(v) State.AutoFarm = v end })
@@ -327,14 +351,14 @@ FarmTab:CreateSlider({ Name = "Зона атаки", Range = {5,200}, Increment 
 FarmTab:CreateSlider({ Name = "Задержка атаки", Range = {1,20}, Increment = 1, Suffix = " x0.1с", CurrentValue = 5, Flag = "FarmDelay", Callback = function(v) Config.FarmDelay = v * 0.1 end })
 FarmTab:CreateSlider({ Name = "Высота Air Farm", Range = {5,30}, Increment = 1, Suffix = " studs", CurrentValue = 12, Flag = "AirHeight", Callback = function(v) Config.AirFarmHeight = v end })
 
--- VISUAL
 local VisualTab = Window:CreateTab("Visual", "eye")
 VisualTab:CreateSection("ESP")
 VisualTab:CreateSlider({ Name = "Дальность ESP", Range = {500, 5000}, Increment = 100, Suffix = " studs", CurrentValue = 3000, Flag = "ESPDistance", Callback = function(v) Config.ESPDistance = v end })
+VisualTab:CreateSlider({ Name = "Радиус ягод", Range = {100, 1000}, Increment = 50, Suffix = " studs", CurrentValue = 300, Flag = "BerryRange", Callback = function(v) Config.BerryRange = v end })
 VisualTab:CreateToggle({ Name = "ESP Мобы", CurrentValue = false, Flag = "ESP_Mobs", Callback = function(v) State.ESP_Mobs = v; if not v then for o in pairs(espCache) do if isMob(o) then removeESP(o) end end end end })
 VisualTab:CreateToggle({ Name = "ESP Игроки", CurrentValue = false, Flag = "ESP_Players", Callback = function(v) State.ESP_Players = v; if not v then for o in pairs(espCache) do if Players:GetPlayerFromCharacter(o) then removeESP(o) end end end end })
 VisualTab:CreateToggle({ Name = "ESP Фрукты", CurrentValue = false, Flag = "ESP_Fruits", Callback = function(v) State.ESP_Fruits = v; if not v then for o in pairs(espCache) do if isFruit(o) then removeESP(o) end end end end })
-VisualTab:CreateToggle({ Name = "ESP Ягоды", CurrentValue = false, Flag = "ESP_Berries", Callback = function(v) State.ESP_Berries = v; if not v then for o in pairs(espCache) do if isBerry(o) then removeESP(o) end end end end })
+VisualTab:CreateToggle({ Name = "ESP Ягоды (рядом)", CurrentValue = false, Flag = "ESP_Berries", Callback = function(v) State.ESP_Berries = v; if not v then for o in pairs(espCache) do if isBerry(o) then removeESP(o) end end end end })
 VisualTab:CreateToggle({ Name = "ESP Сундуки", CurrentValue = false, Flag = "ESP_Chests", Callback = function(v) State.ESP_Chests = v; if not v then for o in pairs(espCache) do if isChest(o) then removeESP(o) end end end end })
 VisualTab:CreateToggle({ Name = "ESP Боссы", CurrentValue = false, Flag = "ESP_Bosses", Callback = function(v) State.ESP_Bosses = v; if not v then for o in pairs(espCache) do if isBoss(o) then removeESP(o) end end end end })
 VisualTab:CreateButton({ Name = "ВЫКЛЮЧИТЬ ВСЁ ESP", Callback = function()
@@ -343,7 +367,6 @@ VisualTab:CreateButton({ Name = "ВЫКЛЮЧИТЬ ВСЁ ESP", Callback = func
     Rayfield:Notify({Title="ESP", Content="Очищено: " .. count, Duration=3})
 end })
 
--- TELEPORT
 local TeleportTab = Window:CreateTab("Teleport", "map")
 TeleportTab:CreateSection("К объектам")
 TeleportTab:CreateButton({ Name = "TP к ближайшему фрукту", Callback = function()
@@ -367,8 +390,8 @@ TeleportTab:CreateButton({ Name = "TP к ближайшему фрукту", Cal
     end
 end })
 TeleportTab:CreateButton({ Name = "TP к ближайшей ягоде", Callback = function()
-    local berries = getAllBerries()
-    if #berries == 0 then Rayfield:Notify({Title="Ягоды", Content="Не найдено", Duration=3}) return end
+    local berries = getNearbyBerries()
+    if #berries == 0 then Rayfield:Notify({Title="Ягоды", Content="Не найдено рядом", Duration=3}) return end
     local char = p.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
     local hrp = char.HumanoidRootPart
@@ -421,7 +444,6 @@ for _, isl in ipairs(ISLANDS) do
     end })
 end
 
--- PLAYERS
 local PlayersTab = Window:CreateTab("Players", "users")
 PlayersTab:CreateSection("Слежка")
 local function getPlayerNames()
@@ -462,7 +484,6 @@ PlayersTab:CreateButton({ Name = "Прекратить слежку", Callback =
     if p.Character then local hum = p.Character:FindFirstChildOfClass("Humanoid"); if hum then workspace.CurrentCamera.CameraSubject = hum end end
 end })
 
--- MOVE
 local MoveTab = Window:CreateTab("Move", "wind")
 MoveTab:CreateSection("Движение")
 MoveTab:CreateToggle({ Name = "Fly (F)", CurrentValue = false, Flag = "Fly", Callback = function(v) State.Fly = v end })
@@ -477,7 +498,6 @@ MoveTab:CreateToggle({ Name = "NoClip", CurrentValue = false, Flag = "NoClip", C
 MoveTab:CreateToggle({ Name = "Infinite Jump", CurrentValue = false, Flag = "InfiniteJump", Callback = function(v) State.InfiniteJump = v end })
 MoveTab:CreateToggle({ Name = "Auto Dash", CurrentValue = false, Flag = "AutoDash", Callback = function(v) State.AutoDash = v end })
 
--- MISC + HELP
 local MiscTab = Window:CreateTab("Misc", "settings")
 MiscTab:CreateSection("Разное")
 MiscTab:CreateToggle({ Name = "Anti-AFK", CurrentValue = false, Flag = "AntiAFK", Callback = function(v) getgenv().AntiAFK = v end })
@@ -500,7 +520,6 @@ HelpTab:CreateButton({
 
 -- ============= ЛОГИКА =============
 
--- Fly
 local flyVel, flyGyro
 UserInput.InputBegan:Connect(function(input, gpe)
     if gpe then return end
@@ -534,7 +553,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Water Walk
 local waterWalkBP
 RunService.Heartbeat:Connect(function()
     if State.WaterWalk and p.Character then
@@ -557,7 +575,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- NoClip
 RunService.Stepped:Connect(function()
     if State.NoClip and p.Character then
         for _, part in ipairs(p.Character:GetDescendants()) do
@@ -566,7 +583,6 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Infinite Jump
 UserInput.JumpRequest:Connect(function()
     if State.InfiniteJump and p.Character then
         local h = p.Character:FindFirstChildOfClass("Humanoid")
@@ -574,7 +590,6 @@ UserInput.JumpRequest:Connect(function()
     end
 end)
 
--- Auto Dash
 task.spawn(function()
     while getgenv().GOSHA_RUNNING do
         task.wait(3)
@@ -584,7 +599,6 @@ task.spawn(function()
     end
 end)
 
--- Слежка
 task.spawn(function()
     while getgenv().GOSHA_RUNNING do
         task.wait(0.2)
@@ -595,7 +609,6 @@ task.spawn(function()
     end
 end)
 
--- Восстановление ESP при респавне
 p.CharacterAdded:Connect(function(char)
     task.wait(2)
     for obj, _ in pairs(espCache) do removeESP(obj) end
@@ -621,7 +634,7 @@ task.spawn(function()
                 end
             end
             if State.ESP_Fruits then for _, obj in ipairs(getAllFruits()) do applyESP(obj, Color3.fromRGB(255, 180, 60)) end end
-            if State.ESP_Berries then for _, obj in ipairs(getAllBerries()) do applyESP(obj, Color3.fromRGB(180, 100, 255)) end end
+            if State.ESP_Berries then for _, obj in ipairs(getNearbyBerries()) do applyESP(obj, Color3.fromRGB(180, 100, 255)) end end
             if State.ESP_Chests then for _, obj in ipairs(getAllChests()) do applyESP(obj, Color3.fromRGB(255, 220, 60)) end end
             if State.ESP_Bosses then for _, obj in ipairs(getAllBosses()) do applyESP(obj, Color3.fromRGB(255, 0, 150)) end end
             for obj, _ in pairs(espCache) do if not obj.Parent then removeESP(obj) end end
@@ -658,13 +671,13 @@ task.spawn(function()
             local char = p.Character
             if char and char:FindFirstChild("HumanoidRootPart") then
                 local hrp = char.HumanoidRootPart
-                local berries = getAllBerries()
+                local berries = getNearbyBerries()
                 local best, dist = nil, math.huge
                 for _, b in ipairs(berries) do
                     local h = b:FindFirstChild("Handle") or b.PrimaryPart
                     if h then
                         local d = (h.Position - hrp.Position).Magnitude
-                        if d < dist and d < 500 then best, dist = b, d end
+                        if d < dist then best, dist = b, d end
                     end
                 end
                 if best then
@@ -739,17 +752,15 @@ task.spawn(function()
     end
 end)
 
--- Anti-AFK
 p.Idled:Connect(function()
     if getgenv().AntiAFK ~= false then VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1); VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1) end
 end)
 
--- WalkSpeed on respawn
 p.CharacterAdded:Connect(function(char)
     task.wait(1)
     local h = char:FindFirstChildOfClass("Humanoid")
     if h then h.WalkSpeed = Config.WalkSpeed end
 end)
 
-Rayfield:Notify({ Title = "Gosha HUB v16.0", Content = "Загружено! ESP стабильно, телепорты исправлены.", Duration = 5 })
-warn("[Gosha HUB v16.0] Загружено успешно")
+Rayfield:Notify({ Title = "Gosha HUB v16.1", Content = "ESP ягод исправлен! Теперь не забивает лимит.", Duration = 5 })
+warn("[Gosha HUB v16.1] Загружено успешно")
