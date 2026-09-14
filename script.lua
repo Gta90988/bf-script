@@ -1,7 +1,7 @@
 --[[
     ╔══════════════════════════════════════════════╗
-    ║           GOSHA HUB v16.2                    ║
-    ║   Berry ESP Fix | Large Window | Stable      ║
+    ║           GOSHA HUB v16.3                    ║
+    ║   Chest Farm Fix | Berry ESP | Large Window  ║
     ╚══════════════════════════════════════════════╝
 ]]
 
@@ -13,7 +13,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "Gosha HUB",
     Icon = 0,
-    LoadingTitle = "Gosha HUB v16.2",
+    LoadingTitle = "Gosha HUB v16.3",
     LoadingSubtitle = "by Gta90988",
     Theme = "Green",
     ToggleUIKeybind = "K",
@@ -22,23 +22,6 @@ local Window = Rayfield:CreateWindow({
     Size = UDim2.new(0, 700, 0, 500)
 })
 getgenv().GOSHA_HUB = Window
-
--- Попытка растянуть окно через прямое изменение размера
-task.spawn(function()
-    task.wait(1)
-    pcall(function()
-        local coreGui = game:GetService("CoreGui")
-        for _, gui in ipairs(coreGui:GetDescendants()) do
-            if gui:IsA("ScreenGui") and gui.Name:lower():find("rayfield") then
-                for _, frame in ipairs(gui:GetDescendants()) do
-                    if frame:IsA("Frame") and frame.Name == "Main" then
-                        frame.Size = UDim2.new(0, 700, 0, 500)
-                    end
-                end
-            end
-        end
-    end)
-end)
 
 -- ===== СЕРВИСЫ =====
 local Players = game:GetService("Players")
@@ -55,7 +38,10 @@ local Config = {
     AutoDetect = true, WalkSpeed = 16, CurrentSea = "Auto",
     Weapon = "Auto", FollowTarget = nil, AirFarmHeight = 12,
     SafeTP = true, TargetMob = "Auto", ESPDistance = 3000, TP_Speed = 100,
-    BerryRange = 300, MaxHighlights = 200
+    BerryRange = 300, MaxHighlights = 200,
+    ChestRange = 1500,          -- Дальность поиска сундуков (больше)
+    ChestDelay = 1.5,           -- Задержка между сундуками
+    ChestRetryCount = 3         -- Попытки долететь до сундука
 }
 
 local function randFloat(a, b) return a + math.random() * (b - a) end
@@ -117,14 +103,33 @@ local function isBoss(obj)
 end
 local function getAllBosses() return recursiveFind(isBoss, 3) end
 
+-- ===== СУНДУКИ (РАСШИРЕННЫЙ ПОИСК) =====
 local function isChest(obj)
+    if not obj or not obj.Parent then return false end
     local n = obj.Name:lower()
-    return (n:find("chest") or n:find("treasure") or n:find("crate"))
-        and (obj:IsA("Model") or obj:IsA("BasePart"))
-        and (obj:FindFirstChild("Handle") or obj.PrimaryPart)
+    -- Расширенный список имён
+    local isChestName = n:find("chest") or n:find("treasure") or n:find("crate") or n:find("box") or n:find("barrel")
+    if not isChestName then return false end
+    -- Может быть Model или BasePart
+    if not (obj:IsA("Model") or obj:IsA("BasePart")) then return false end
+    -- Должен иметь Handle или PrimaryPart
+    return (obj:FindFirstChild("Handle") ~= nil) or (obj.PrimaryPart ~= nil)
 end
-local function getAllChests() return recursiveFind(isChest, 5) end
 
+local function getAllChests()
+    local found = recursiveFind(isChest, 6)  -- Увеличил глубину с 5 до 6
+    return found
+end
+
+-- Получить позицию сундука
+local function getChestPosition(chest)
+    if not chest or not chest.Parent then return nil end
+    local handle = chest:FindFirstChild("Handle") or chest.PrimaryPart
+    if not handle then return nil end
+    return handle.Position
+end
+
+-- ===== ФРУКТЫ =====
 local FRUITS = {["Rocket"]=true,["Spin"]=true,["Chop"]=true,["Spring"]=true,["Bomb"]=true,["Smoke"]=true,["Spike"]=true,["Flame"]=true,["Falcon"]=true,["Ice"]=true,["Sand"]=true,["Dark"]=true,["Diamond"]=true,["Light"]=true,["Rubber"]=true,["Barrier"]=true,["Magma"]=true,["Door"]=true,["Quake"]=true,["Buddha"]=true,["Love"]=true,["Spider"]=true,["Sound"]=true,["Phoenix"]=true,["Portal"]=true,["Rumble"]=true,["Pain"]=true,["Blizzard"]=true,["Gravity"]=true,["Mammoth"]=true,["T-Rex"]=true,["Dough"]=true,["Shadow"]=true,["Venom"]=true,["Control"]=true,["Spirit"]=true,["Dragon"]=true,["Leopard"]=true,["Kitsune"]=true}
 local function isFruit(obj)
     if not obj or not obj.Parent then return false end
@@ -143,6 +148,7 @@ local function getAllFruits()
     return list
 end
 
+-- ===== ЯГОДЫ =====
 local BERRY_NAMES = {"Green Toad Berry","White Cloud Berry","Blue Icicle Berry","Purple Jelly Berry","Pink Pig Berry","Orange Berry","Yellow Star Berry","Red Cherry Berry"}
 
 local function isBerry(obj)
@@ -184,6 +190,7 @@ local function getPlayerCharacter(plr)
     return char
 end
 
+-- ===== ОСТРОВА =====
 local ISLANDS = {
     {name="Starter Island", cf=CFrame.new(0,20,0), sea=1}, {name="Marine Fortress", cf=CFrame.new(-2500,30,-2500), sea=1}, {name="Middle Town", cf=CFrame.new(-600,15,600), sea=1}, {name="Jungle", cf=CFrame.new(-1500,20,200), sea=1}, {name="Pirate Village", cf=CFrame.new(-1200,20,3300), sea=1}, {name="Desert", cf=CFrame.new(-1300,20,4300), sea=1}, {name="Frozen Village", cf=CFrame.new(-1100,20,5800), sea=1}, {name="Colosseum", cf=CFrame.new(-1500,40,2000), sea=1}, {name="Magma Village", cf=CFrame.new(-5200,30,1000), sea=1}, {name="Underwater City", cf=CFrame.new(-4000,-200,5000), sea=1}, {name="Fountain City", cf=CFrame.new(5200,30,4000), sea=1}, {name="Skylands", cf=CFrame.new(-4500,800,-3000), sea=1},
     {name="Cafe", cf=CFrame.new(-380, 60, 260), sea=2},
@@ -260,6 +267,7 @@ local State = {
     WaterWalk = false, NoClip = false, InfiniteJump = false, AutoDash = false
 }
 
+-- ===== ESP =====
 getgenv().GOSHA_ESP = {}
 local espCache = getgenv().GOSHA_ESP
 
@@ -332,20 +340,26 @@ end
 
 -- ===== UI =====
 local FarmTab = Window:CreateTab("Farm", "sword")
-FarmTab:CreateSection("Автофарм")
+FarmTab:CreateSection("Автофарм мобов")
 FarmTab:CreateToggle({ Name = "Auto Farm (Ground)", CurrentValue = false, Flag = "AutoFarm", Callback = function(v) State.AutoFarm = v end })
 FarmTab:CreateToggle({ Name = "Auto Farm (Air)", CurrentValue = false, Flag = "AutoFarmAir", Callback = function(v) State.AutoFarmAir = v end })
 FarmTab:CreateToggle({ Name = "Auto Haki", CurrentValue = false, Flag = "AutoHaki", Callback = function(v) State.AutoHaki = v end })
 FarmTab:CreateToggle({ Name = "Auto Click", CurrentValue = false, Flag = "AutoClick", Callback = function(v) State.AutoClick = v end })
-FarmTab:CreateToggle({ Name = "Auto Chest", CurrentValue = false, Flag = "AutoChest", Callback = function(v) State.AutoChest = v end })
-FarmTab:CreateToggle({ Name = "Auto Berry Farm", CurrentValue = false, Flag = "AutoBerryFarm", Callback = function(v) State.AutoBerryFarm = v end })
 FarmTab:CreateToggle({ Name = "Auto Boss", CurrentValue = false, Flag = "AutoBoss", Callback = function(v) State.AutoBoss = v end })
+
+FarmTab:CreateSection("Автосбор")
+FarmTab:CreateToggle({ Name = "Auto Chest (УЛУЧШЕННЫЙ)", CurrentValue = false, Flag = "AutoChest", Callback = function(v) State.AutoChest = v end })
+FarmTab:CreateToggle({ Name = "Auto Berry Farm", CurrentValue = false, Flag = "AutoBerryFarm", Callback = function(v) State.AutoBerryFarm = v end })
 FarmTab:CreateToggle({ Name = "Auto Store Fruit", CurrentValue = false, Flag = "AutoStore", Callback = function(v) State.AutoStore = v end })
+
+FarmTab:CreateSection("Настройки")
 FarmTab:CreateDropdown({ Name = "Кого фармить", Options = {"Auto","Bandit","Monkey","Pirate","Brute","Snow Bandit","Zombie","Swan Pirate","Ice Pirate","Fishman","Soldier","Mercenary","Raider","Magma Ninja","Lava Pirate"}, CurrentOption = {"Auto"}, Flag = "TargetMob", Callback = function(v) Config.TargetMob = v[1] end })
 FarmTab:CreateDropdown({ Name = "Оружие", Options = {"Auto","Melee","Sword","Gun","Fruit"}, CurrentOption = {"Auto"}, Flag = "Weapon", Callback = function(v) Config.Weapon = v[1] end })
 FarmTab:CreateSlider({ Name = "Зона атаки", Range = {5,200}, Increment = 5, Suffix = " studs", CurrentValue = 50, Flag = "AttackRadius", Callback = function(v) Config.AttackRadius = v end })
 FarmTab:CreateSlider({ Name = "Задержка атаки", Range = {1,20}, Increment = 1, Suffix = " x0.1с", CurrentValue = 5, Flag = "FarmDelay", Callback = function(v) Config.FarmDelay = v * 0.1 end })
 FarmTab:CreateSlider({ Name = "Высота Air Farm", Range = {5,30}, Increment = 1, Suffix = " studs", CurrentValue = 12, Flag = "AirHeight", Callback = function(v) Config.AirFarmHeight = v end })
+FarmTab:CreateSlider({ Name = "Дальность поиска сундуков", Range = {300, 3000}, Increment = 100, Suffix = " studs", CurrentValue = 1500, Flag = "ChestRange", Callback = function(v) Config.ChestRange = v end })
+FarmTab:CreateSlider({ Name = "Задержка сундуков", Range = {1, 10}, Increment = 1, Suffix = " x0.5с", CurrentValue = 3, Flag = "ChestDelay", Callback = function(v) Config.ChestDelay = v * 0.5 end })
 
 local VisualTab = Window:CreateTab("Visual", "eye")
 VisualTab:CreateSection("ESP")
@@ -354,7 +368,7 @@ VisualTab:CreateSlider({ Name = "Радиус ягод", Range = {100, 1000}, In
 VisualTab:CreateToggle({ Name = "ESP Мобы", CurrentValue = false, Flag = "ESP_Mobs", Callback = function(v) State.ESP_Mobs = v; if not v then for o in pairs(espCache) do if isMob(o) then removeESP(o) end end end end })
 VisualTab:CreateToggle({ Name = "ESP Игроки", CurrentValue = false, Flag = "ESP_Players", Callback = function(v) State.ESP_Players = v; if not v then for o in pairs(espCache) do if Players:GetPlayerFromCharacter(o) then removeESP(o) end end end end })
 VisualTab:CreateToggle({ Name = "ESP Фрукты", CurrentValue = false, Flag = "ESP_Fruits", Callback = function(v) State.ESP_Fruits = v; if not v then for o in pairs(espCache) do if isFruit(o) then removeESP(o) end end end end })
-VisualTab:CreateToggle({ Name = "ESP Ягоды (рядом)", CurrentValue = false, Flag = "ESP_Berries", Callback = function(v) State.ESP_Berries = v; if not v then for o in pairs(espCache) do if isBerry(o) then removeESP(o) end end end end })
+VisualTab:CreateToggle({ Name = "ESP Ягоды", CurrentValue = false, Flag = "ESP_Berries", Callback = function(v) State.ESP_Berries = v; if not v then for o in pairs(espCache) do if isBerry(o) then removeESP(o) end end end end })
 VisualTab:CreateToggle({ Name = "ESP Сундуки", CurrentValue = false, Flag = "ESP_Chests", Callback = function(v) State.ESP_Chests = v; if not v then for o in pairs(espCache) do if isChest(o) then removeESP(o) end end end end })
 VisualTab:CreateToggle({ Name = "ESP Боссы", CurrentValue = false, Flag = "ESP_Bosses", Callback = function(v) State.ESP_Bosses = v; if not v then for o in pairs(espCache) do if isBoss(o) then removeESP(o) end end end end })
 VisualTab:CreateButton({ Name = "ВЫКЛЮЧИТЬ ВСЁ ESP", Callback = function()
@@ -503,6 +517,21 @@ MiscTab:CreateButton({ Name = "FPS / Ping", Callback = function()
     local ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
     Rayfield:Notify({Title="Info", Content="FPS: " .. fps .. " | Ping: " .. ping .. "ms", Duration=5})
 end})
+MiscTab:CreateButton({ Name = "DEBUG: Показать сундуки рядом", Callback = function()
+    local chests = getAllChests()
+    local char = p.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local near = 0
+    if hrp then
+        for _, c in ipairs(chests) do
+            local pos = getChestPosition(c)
+            if pos and (pos - hrp.Position).Magnitude < Config.ChestRange then
+                near = near + 1
+            end
+        end
+    end
+    Rayfield:Notify({Title="DEBUG", Content="Всего: " .. #chests .. " | Рядом: " .. near, Duration=5})
+end, Color3.fromRGB(180, 150, 50)})
 
 local HelpTab = Window:CreateTab("Help", "circle-help")
 HelpTab:CreateSection("Поддержка")
@@ -613,6 +642,8 @@ end)
 -- ============= ОСНОВНОЙ ЦИКЛ =============
 task.spawn(function()
     local lastESP, lastFarm, lastChest, lastBerry, lastStore = 0, 0, 0, 0, 0
+    local chestFailCount = 0  -- Счётчик неудач для сундуков
+    
     while getgenv().GOSHA_RUNNING do
         task.wait(0.15)
         local now = tick()
@@ -660,6 +691,60 @@ task.spawn(function()
             end
         end
 
+        -- ===== УЛУЧШЕННЫЙ AUTO CHEST =====
+        if State.AutoChest and now - lastChest > Config.ChestDelay then
+            lastChest = now
+            local char = p.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local hrp = char.HumanoidRootPart
+                local chests = getAllChests()
+                
+                -- Ищем ближайший сундук в радиусе ChestRange
+                local best, dist = nil, math.huge
+                for _, c in ipairs(chests) do
+                    local pos = getChestPosition(c)
+                    if pos then
+                        local d = (pos - hrp.Position).Magnitude
+                        if d < dist and d < Config.ChestRange then 
+                            best, dist = c, d 
+                        end
+                    end
+                end
+                
+                if best then
+                    local pos = getChestPosition(best)
+                    if pos then
+                        -- Проверка: если сундук близко (меньше 15 studs) — считаем что долетели
+                        if dist < 15 then
+                            chestFailCount = 0
+                            -- Просто ждём, чтобы игра обработала сбор
+                            task.wait(0.3)
+                        else
+                            -- Летим к сундуку
+                            flyTo(hrp, CFrame.new(pos + Vector3.new(0, 2, 0)), 0.4)
+                            task.wait(0.2)
+                            
+                            -- Проверяем долетели ли
+                            local newDist = (getChestPosition(best) or pos - hrp.Position).Magnitude
+                            if newDist > 20 then
+                                chestFailCount = chestFailCount + 1
+                                -- Если не долетели 3 раза — увеличиваем диапазон
+                                if chestFailCount >= Config.ChestRetryCount then
+                                    chestFailCount = 0
+                                    task.wait(1)
+                                end
+                            else
+                                chestFailCount = 0
+                            end
+                        end
+                    end
+                else
+                    -- Нет сундуков рядом — ждём
+                    task.wait(0.5)
+                end
+            end
+        end
+
         if State.AutoBerryFarm and now - lastBerry > 2 then
             lastBerry = now
             local char = p.Character
@@ -672,27 +757,6 @@ task.spawn(function()
                     if h then
                         local d = (h.Position - hrp.Position).Magnitude
                         if d < dist then best, dist = b, d end
-                    end
-                end
-                if best then
-                    local h = best:FindFirstChild("Handle") or best.PrimaryPart
-                    flyTo(hrp, h.CFrame * CFrame.new(0, 0, 3), 0.4)
-                end
-            end
-        end
-
-        if State.AutoChest and now - lastChest > 2 then
-            lastChest = now
-            local char = p.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                local hrp = char.HumanoidRootPart
-                local chests = getAllChests()
-                local best, dist = nil, math.huge
-                for _, c in ipairs(chests) do
-                    local h = c:FindFirstChild("Handle") or c.PrimaryPart
-                    if h then
-                        local d = (h.Position - hrp.Position).Magnitude
-                        if d < dist and d < 700 then best, dist = c, d end
                     end
                 end
                 if best then
@@ -751,5 +815,5 @@ p.CharacterAdded:Connect(function(char)
     if h then h.WalkSpeed = Config.WalkSpeed end
 end)
 
-Rayfield:Notify({ Title = "Gosha HUB v16.2", Content = "Загружено! Окно увеличено.", Duration = 5 })
-warn("[Gosha HUB v16.2] Загружено успешно")
+Rayfield:Notify({ Title = "Gosha HUB v16.3", Content = "Auto Chest исправлен! Теперь не останавливается.", Duration = 5 })
+warn("[Gosha HUB v16.3] Загружено успешно")
